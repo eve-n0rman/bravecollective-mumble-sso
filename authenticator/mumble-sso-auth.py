@@ -94,7 +94,7 @@ class ServerAuthenticatorI(Murmur.ServerUpdatingAuthenticator):
 # ---- Check Bans
 
 		c = db.cursor(MySQLdb.cursors.DictCursor)
-		c.execute("SELECT * FROM ban WHERE filter = %s", ('alliance-' + str(alliance_id)))
+		c.execute("SELECT * FROM ban WHERE filter = %s", ('alliance-' + str(alliance_id),))
 		row = c.fetchone()
 		c.close()
 
@@ -103,7 +103,7 @@ class ServerAuthenticatorI(Murmur.ServerUpdatingAuthenticator):
 		    return (-1, None, None)
 
 		c = db.cursor(MySQLdb.cursors.DictCursor)
-		c.execute("SELECT * FROM ban WHERE filter = %s", ('corporation-' + str(corporation_id)))
+		c.execute("SELECT * FROM ban WHERE filter = %s", ('corporation-' + str(corporation_id),))
 		row = c.fetchone()
 		c.close()
 
@@ -112,7 +112,7 @@ class ServerAuthenticatorI(Murmur.ServerUpdatingAuthenticator):
 		    return (-1, None, None)
 
 		c = db.cursor(MySQLdb.cursors.DictCursor)
-		c.execute("SELECT * FROM ban WHERE filter = %s", ('character-' + str(character_id)))
+		c.execute("SELECT * FROM ban WHERE filter = %s", ('character-' + str(character_id),))
 		row = c.fetchone()
 		c.close()
 
@@ -123,12 +123,12 @@ class ServerAuthenticatorI(Murmur.ServerUpdatingAuthenticator):
 # ---- Retrieve tickers
 
 		c = db.cursor(MySQLdb.cursors.DictCursor)
-		c.execute("SELECT * FROM ticker WHERE filter = %s", ('alliance-' + str(alliance_id)))
+		c.execute("SELECT * FROM ticker WHERE filter = %s", ('alliance-' + str(alliance_id),))
 		rowa = c.fetchone()
 		c.close()
 
 		c = db.cursor(MySQLdb.cursors.DictCursor)
-		c.execute("SELECT * FROM ticker WHERE filter = %s", ('corporation-' + str(corporation_id)))
+		c.execute("SELECT * FROM ticker WHERE filter = %s", ('corporation-' + str(corporation_id),))
 		rowc = c.fetchone()
 		c.close()
 
