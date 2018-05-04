@@ -158,6 +158,7 @@ class ServerAuthenticatorI(Murmur.ServerUpdatingAuthenticator):
 	    except Exception, e:
 		print("Fail: {0}".format(e))
 		return (-1, None, None)
+		raise
 	    finally:
 		if db:
 		    db.close()
