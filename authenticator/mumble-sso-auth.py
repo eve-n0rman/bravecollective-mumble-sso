@@ -12,7 +12,7 @@ import Murmur
 # -------------------------------------------------------------------------------
 
 cfg = 'mumble-sso-auth.ini'
-print('Reading config file: {0}').format(cfg)
+print('Reading config file: {0}'.format(cfg))
 config = ConfigParser.RawConfigParser()
 config.read(cfg)
 
@@ -51,10 +51,10 @@ class ServerAuthenticatorI(Murmur.ServerUpdatingAuthenticator):
 		if(not name or len(name) == 0):
 			return (-1, None, None)
 
-		print("Info: Trying '{0}'").format(name)
+		print("Info: Trying '{0}'".format(name))
 
 		if(not pw or len(pw) == 0):
-			print("Fail: {0} did not send a passsword").format(name)
+			print("Fail: {0} did not send a passsword".format(name))
 			return (-1, None, None)
 
 # ---- Retrieve User
@@ -66,7 +66,7 @@ class ServerAuthenticatorI(Murmur.ServerUpdatingAuthenticator):
 		c.close()
 
 		if not row:
-		    print("Fail: {0} not found in database").format(name)
+		    print("Fail: {0} not found in database".format(name))
 		    return (-1, None, None)
 
 		character_id = row['character_id']
@@ -88,7 +88,7 @@ class ServerAuthenticatorI(Murmur.ServerUpdatingAuthenticator):
 # ---- Verify Password
 
 		if mumble_password != pw:
-		    print("Fail: {0} password does not match for {1}").format(name, character_id)
+		    print("Fail: {0} password does not match for {1}: '{2}' != '{3}'".format(name, character_id, mumble_password, pw))
 		    return (-1, None, None)
 
 # ---- Check Bans
@@ -99,7 +99,7 @@ class ServerAuthenticatorI(Murmur.ServerUpdatingAuthenticator):
 		c.close()
 
 		if row:
-		    print("Fail: {0} alliance banned from server: {1} / {2}").format(name, row['reason_public'], row['reason_internal'])
+		    print("Fail: {0} alliance banned from server: {1} / {2}".format(name, row['reason_public'], row['reason_internal']))
 		    return (-1, None, None)
 
 		c = db.cursor(MySQLdb.cursors.DictCursor)
@@ -108,7 +108,7 @@ class ServerAuthenticatorI(Murmur.ServerUpdatingAuthenticator):
 		c.close()
 
 		if row:
-		    print("Fail: {0} corporation banned from server: {1} / {2}").format(name, row['reason_public'], row['reason_internal'])
+		    print("Fail: {0} corporation banned from server: {1} / {2}".format(name, row['reason_public'], row['reason_internal']))
 		    return (-1, None, None)
 
 		c = db.cursor(MySQLdb.cursors.DictCursor)
@@ -117,7 +117,7 @@ class ServerAuthenticatorI(Murmur.ServerUpdatingAuthenticator):
 		c.close()
 
 		if row:
-		    print("Fail: {0} character banned from server: {1} / {2}").format(name, row['reason_public'], row['reason_internal'])
+		    print("Fail: {0} character banned from server: {1} / {2}".format(name, row['reason_public'], row['reason_internal']))
 		    return (-1, None, None)
 
 # ---- Retrieve tickers
@@ -136,10 +136,10 @@ class ServerAuthenticatorI(Murmur.ServerUpdatingAuthenticator):
 		ticker_corporation = '-----' if not rowc else rowc['text'];
 
 		if restrict_access_by_ticker == '1' and not (rowa or rowc):
-		    print("Fail: {0} access requires one known ticker: {1} {2} {3} / {4} {5} {6}").format(name, corporation_id, ticker_corporation, corporation_name, alliance_id, ticker_alliance, alliance_name)
+		    print("Fail: {0} access requires one known ticker: {1} {2} {3} / {4} {5} {6}".format(name, corporation_id, ticker_corporation, corporation_name, alliance_id, ticker_alliance, alliance_name))
 		    return (-1, None, None)
 		if restrict_access_by_ticker == '2' and not (rowa and rowc):
-		    print("Fail: {0} access requires two known ticker: {1} {2} {3} / {4} {5} {6}").format(name, corporation_id, ticker_corporation, corporation_name, alliance_id, ticker_alliance, alliance_name)
+		    print("Fail: {0} access requires two known ticker: {1} {2} {3} / {4} {5} {6}".format(name, corporation_id, ticker_corporation, corporation_name, alliance_id, ticker_alliance, alliance_name))
 		    return (-1, None, None)
 
 # ---- Generate Displayname
@@ -151,7 +151,7 @@ class ServerAuthenticatorI(Murmur.ServerUpdatingAuthenticator):
 
 # ---- Done
 
-		print("Success: '{0}' as '{1}' in {2}").format(character_id, nick, groups)
+		print("Success: '{0}' as '{1}' in {2}".format(character_id, nick, groups))
 		return (character_id, nick, groups)
 
 	    except Exception, e:
@@ -168,22 +168,22 @@ class ServerAuthenticatorI(Murmur.ServerUpdatingAuthenticator):
 	    return (-2, None, None)
 
 	def registerPlayer(self, name, current=None):
-	    print ("Warn: Somebody tried to register player '{0}'").format(name)
+	    print ("Warn: Somebody tried to register player '{0}'".format(name))
 	    return -1
 
 	def unregisterPlayer(self, id, current=None):
-	    print ("Warn: Somebody tried to unregister player '{0}'").format(id)
+	    print ("Warn: Somebody tried to unregister player '{0}'".format(id))
 	    return -1
 
 	def getRegisteredUsers(self, filter, current=None):
 	    return dict()
 
 	def registerUser(self, name, current = None):
-	    print ("Warn: Somebody tried to register user '{0}'").format(name)
+	    print ("Warn: Somebody tried to register user '{0}'".format(name))
 	    return -1
 
 	def unregisterUser(self, name, current = None):
-	    print ("Warn: Somebody tried to unregister user '{0}'").format(name)
+	    print ("Warn: Somebody tried to unregister user '{0}'".format(name))
 	    return -1
 
 	def idToTexture(self, id, current=None):
@@ -199,11 +199,11 @@ class ServerAuthenticatorI(Murmur.ServerUpdatingAuthenticator):
 		return (False, None)
 
 	def setInfo(self, id, info, current = None):
-	    print ("Warn: Somebody tried to set info for '{0}'").format(id)
+	    print ("Warn: Somebody tried to set info for '{0}'".format(id))
 	    return -1
 
 	def setTexture(self, id, texture, current = None):
-	    print ("Warn: Somebody tried to set a texture for '{0}'").format(id)
+	    print ("Warn: Somebody tried to set a texture for '{0}'".format(id))
 	    return -1
 
 # -------------------------------------------------------------------------------
