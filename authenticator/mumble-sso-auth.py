@@ -4,9 +4,10 @@ import os, sys, time, re
 import MySQLdb, ConfigParser
 
 import Ice
-Ice.loadSlice('/usr/share/slice/Murmur.ice')
-# ^ Sometimes the import of ice files fail. Try enforce an include path like that:
-# Ice.loadSlice("--all -I/usr/share/Ice-3.5.1/slice/ /usr/share/slice/Murmur.ice")
+try:
+	Ice.loadSlice('/usr/share/slice/Murmur.ice')
+except RuntimeError:
+	Ice.loadSlice("--all -I/usr/share/Ice-3.5.1/slice/ /usr/share/slice/Murmur.ice")
 import Murmur
 
 # -------------------------------------------------------------------------------
