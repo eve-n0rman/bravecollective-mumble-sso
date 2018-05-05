@@ -1,6 +1,4 @@
-<?php if (!defined('GUEST')) die('go away'); ?>
-
-<?php
+<?php if (!defined('GUEST')) die('go away');
 
 function krand($length) {
     $alphabet = "abcdefghkmnpqrstuvwxyzABCDEFGHKMNPQRSTUVWXYZ23456789";
@@ -135,32 +133,14 @@ function sso_update() {
 
     // ---- Character details
 
-    $options = array(
-	'http' => array(
-	    'method'  => 'GET',
-	    'header'  => array(
-		'Host: api.eveonline.com',
-		'User-Agent: ' . $cfg_user_agent,
-	    ),
-        ),
-    );
-    $result = file_get_contents('https://api.eveonline.com/eve/CharacterAffiliation.xml.aspx?ids=' . $character_id, false, stream_context_create($options));
-    if (!$result) {
-	$_SESSION['error_code'] = 60;
-	$_SESSION['error_message'] = 'Failed to retrieve character details.';
-	return false;
-    }
-    $apiInfo = new SimpleXMLElement($result);
-    $row = $apiInfo->result->rowset->row->attributes();
+    $affiliation = character_affiliation($character_id);
 
-    $character_name = (string)$row->characterName;
-    $corporation_id = (int)$row->corporationID;
-    $corporation_name = (string)$row->corporationName;
-    $alliance_id = (int)$row->allianceID;
-    $alliance_name = (string)$row->allianceName;
-
+    $character_name = (string)$affiliation[0]['character_name'];
+    $corporation_id = (int)$affiliation[0]['corporation_id'];
+    $corporation_name = (string)$affiliation[0]['corporation_name'];
+    $alliance_id = (int)$affiliation[0]['alliance_id'];
+    $alliance_name = (string)$affiliation[0]['alliance_name'];
     $mumble_username = toMumbleName($character_name);
-
     $updated_at = time();
 
     // ---- Access Restrictions
@@ -395,69 +375,206 @@ function pass_update() {
     return true;
 }
 
+function character_affiliation($character_id_array) {
+    global $cfg_user_agent;
+
+    if (is_array($character_id_array)) {
+        $character_id_array = array_unique($character_id_array, SORT_NUMERIC);
+    } else {
+        $character_id_array = array($character_id_array);
+    }
+    $character_query = implode(',', $character_id_array);
+    $affiliation_query = '[' . $character_query . ']';
+
+    $curl = curl_init('https://esi.evetech.net/latest/characters/affiliation/');
+    curl_setopt_array($curl, array(
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_MAXREDIRS => 5,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_USERAGENT => $cfg_user_agent,
+            CURLOPT_HTTPHEADER => array(
+                'Content-type: application/json',
+                'Content-length: ' . strlen($affiliation_query)
+            ),
+            CURLOPT_CUSTOMREQUEST => 'POST',
+            CURLOPT_POSTFIELDS => $affiliation_query
+        )
+    );
+    $response = curl_exec($curl);
+    $error = curl_error($curl);
+    if ($error) {
+        $_SESSION['error_code'] = 60;
+        $_SESSION['error_message'] = 'Failed to retrieve character details.';
+        return false;
+    }
+    curl_close($curl);
+    $affiliations = json_decode($response, true);
+
+    $character_count = count($affiliations);
+    $corps = array();
+    $alliances = array();
+    for ($i = 0; $i < $character_count; $i++) {
+        $corps[] = $affiliations[$i]['corporation_id'];
+        $alliances[] = $affiliations[$i]['alliance_id'];
+    }
+    $corps = array_unique($corps, SORT_NUMERIC);
+    $corp_query = implode(',', $corps);
+    $alliances = array_unique($alliances, SORT_NUMERIC);
+    $alliance_query = implode(',', $alliances);
+
+
+    // Character names
+    // NOTE: Unlike the /characters/affiliation/ this endpoint query may error if there are too many characters queried and the address is too long.
+    $curl = curl_init('https://esi.evetech.net/latest/characters/names/?character_ids=' . $character_query);
+    curl_setopt_array($curl, array(
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_MAXREDIRS => 5,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_USERAGENT => $cfg_user_agent,
+        )
+    );
+    $response = curl_exec($curl);
+    $error = curl_error($curl);
+    if ($error) {
+        $_SESSION['error_code'] = 61;
+        $_SESSION['error_message'] = 'Failed to retrieve character names.';
+        return false;
+    }
+    curl_close($curl);
+    $chars = json_decode($response);
+    $char_count = count($chars);
+    $char_map = array();
+    for ($i = 0; $i < $char_count; $i++) {
+        $char_map[(int)$chars[$i]->character_id] = (string)$chars[$i]->character_name;
+    }
+
+
+    // Corporation Info
+    // NOTE: Unlike the /characters/affiliation/ this endpoint query may error if there are too many characters queried and the address is too long.
+    $curl = curl_init('https://esi.evetech.net/latest/corporations/names/?corporation_ids=' . $corp_query);
+    curl_setopt_array($curl, array(
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_MAXREDIRS => 5,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_USERAGENT => $cfg_user_agent,
+        )
+    );
+    $response = curl_exec($curl);
+    $error = curl_error($curl);
+    if ($error) {
+        $_SESSION['error_code'] = 62;
+        $_SESSION['error_message'] = 'Failed to retrieve corporation names.';
+        return false;
+    }
+    curl_close($curl);
+    $corps = json_decode($response);
+    $corp_count = count($corps);
+    $corp_map = array();
+    for ($i = 0; $i < $corp_count; $i++) {
+        $corp_map[(int)$corps[$i]->corporation_id] = (string)$corps[$i]->corporation_name;
+    }
+
+    // Alliance Info
+    // NOTE: Unlike the /characters/affiliation/ this endpoint query may error if there are too many characters queried and the address is too long.
+    $curl = curl_init('https://esi.evetech.net/latest/alliances/names/?alliance_ids=' . $alliance_query);
+    curl_setopt_array($curl, array(
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_MAXREDIRS => 5,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+            CURLOPT_USERAGENT => $cfg_user_agent,
+        )
+    );
+    $response = curl_exec($curl);
+    $error = curl_error($curl);
+    if ($error) {
+        $_SESSION['error_code'] = 63;
+        $_SESSION['error_message'] = 'Failed to retrieve alliance names.';
+        return false;
+    }
+    curl_close($curl);
+    $alliances = json_decode($response);
+    $alliance_count = count($alliances);
+    $alliance_map = array();
+    for ($i = 0; $i < $alliance_count; $i++) {
+        $alliance_map[(int)$alliances[$i]->alliance_id] = (string)$alliances[$i]->alliance_name;
+    }
+
+    // Jam it into our affiliatoins array
+    for ($i = 0; $i < $character_count; $i++) {
+        $affiliations[$i]['character_name']   = $char_map[$affiliations[$i]['character_id']];
+        $affiliations[$i]['corporation_name'] = $corp_map[$affiliations[$i]['corporation_id']];
+        $affiliations[$i]['alliance_name']    = $alliance_map[$affiliations[$i]['alliance_id']];
+    }
+
+    return $affiliations;
+}
+
 function character_refresh() {
     global $cfg_sql_url, $cfg_sql_user, $cfg_sql_pass, $cfg_user_agent;
 
     try {
-	$dbr = new PDO($cfg_sql_url, $cfg_sql_user, $cfg_sql_pass);
+        $dbr = new PDO($cfg_sql_url, $cfg_sql_user, $cfg_sql_pass);
     } catch (PDOException $e) {
-	    echo "FAIL: Failed to connect to the database.\n";
-	    return;
+        echo "FAIL: Failed to connect to the database.\n";
+        return;
     }
 
     $stmu = $dbr->prepare('SELECT * FROM user WHERE updated_at < :updated_at');
     $stmu->bindValue(':updated_at', time() - (60 * 60 * 24));
     if (!$stmu->execute()) {
-	$arr = $stmu->ErrorInfo();
-	echo ('FAIL: Failed to retrieve users: '.$arr[0].':'.$arr[1].':'.$arr[2] . "\n");
-	return false;
+        $err = $stmu->ErrorInfo();
+        echo ('FAIL: Failed to retrieve users: '.$err[0].':'.$err[1].':'.$err[2] . "\n");
+        return false;
     }
 
+    $char_id_list = array();
     while ($row = $stmu->fetch()) {
-	sleep(1);
-	$character_id = $row['character_id'];
-	echo "Updating: " . $character_id;
+        $char_id_list[] = $row['character_id'];
+    }
 
-	$options = array(
-	    'http' => array(
-		'method'  => 'GET',
-		'header'  => array(
-		    'Host: api.eveonline.com',
-		    'User-Agent: ' . $cfg_user_agent,
-		),
-	    ),
-	);
-	$result = file_get_contents('https://api.eveonline.com/eve/CharacterAffiliation.xml.aspx?ids=' . $character_id, false, stream_context_create($options));
-	if (!$result) {
-	    echo "...failed to retrieve affiliation.\n";
-	    continue;
-	}
-	$apiInfo = new SimpleXMLElement($result);
-	$row = $apiInfo->result->rowset->row->attributes();
+    $characters = character_affiliation($char_id_list);
+    $affiliation_count = count($characters);
+    $stm = $dbr->prepare('UPDATE user
+                          SET character_name = :character_name,
+                              corporation_id = :corporation_id,
+                              corporation_name = :corporation_name,
+                              alliance_id = :alliance_id,
+                              alliance_name = :alliance_name,
+                              mumble_username = :mumble_username,
+                              updated_at = :updated_at
+                          WHERE character_id = :character_id');
 
-	$character_name = (string)$row->characterName;
-	$corporation_id = (int)$row->corporationID;
-	$corporation_name = (string)$row->corporationName;
-	$alliance_id = (int)$row->allianceID;
-	$alliance_name = (string)$row->allianceName;
-	$mumble_username = toMumbleName($character_name);
-	$updated_at = time();
+    for ($i = 0; $i < $affiliation_count; $i++) {
+        $character = $characters[$i];
+        echo "Updating: " . $character['character_name'];
 
-	$stm = $dbr->prepare('UPDATE user set character_name = :character_name, corporation_id = :corporation_id, corporation_name = :corporation_name, alliance_id = :alliance_id, alliance_name = :alliance_name, mumble_username = :mumble_username, updated_at = :updated_at WHERE character_id = :character_id');
-	$stm->bindValue(':character_id', $character_id);
-	$stm->bindValue(':character_name', $character_name);
-	$stm->bindValue(':corporation_id', $corporation_id);
-	$stm->bindValue(':corporation_name', $corporation_name);
-	$stm->bindValue(':alliance_id', $alliance_id);
-	$stm->bindValue(':alliance_name', $alliance_name);
-	$stm->bindValue(':mumble_username', $mumble_username);
-	$stm->bindValue(':updated_at', $updated_at);
-	if (!$stm->execute()) {
-	    $arr = $stm->ErrorInfo();
-	    echo ('...failed to update user: '.$arr[0].':'.$arr[1].':'.$arr[2] . "\n");
-	    continue;
-	}
-	echo "...OK\n";
+        $character_id = (int)$character['character_id'];
+        $character_name = (string)$character['character_name'];
+        $corporation_id = (int)$character['corporation_id'];
+        $corporation_name = (string)$character['corporation_name'];
+        $alliance_id = (int)$character['alliance_id'];
+        $alliance_name = (string)$character['alliance_name'];
+        $mumble_username = toMumbleName($character_name);
+        $updated_at = time();
+
+        $stm->bindValue(':character_id', $character_id);
+        $stm->bindValue(':character_name', $character_name);
+        $stm->bindValue(':corporation_id', $corporation_id);
+        $stm->bindValue(':corporation_name', $corporation_name);
+        $stm->bindValue(':alliance_id', $alliance_id);
+        $stm->bindValue(':alliance_name', $alliance_name);
+        $stm->bindValue(':mumble_username', $mumble_username);
+        $stm->bindValue(':updated_at', $updated_at);
+        if (!$stm->execute()) {
+            $err = $stm->ErrorInfo();
+            echo ('...failed to update user: '.$err[0].':'.$err[1].':'.$err[2] . "\n");
+            continue;
+        }
+        echo "...OK\n";
     }
 
     return true;
