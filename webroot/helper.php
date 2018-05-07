@@ -432,34 +432,69 @@ function character_affiliation($full_character_id_array) {
     global $cfg_core_app_id;
     global $cfg_core_app_secret;
 
-    $core_bearer = base64_encode($cfg_core_app_id . ':' . $cfg_core_app_secret);
-
-    $core_curls = array();
-    $core_curl_multi = curl_multi_init();
-
-    foreach ($full_character_id_array as $character_id) {
-        $curl = curl_init(cfg_core_api . '/app/v1/groups/' + character_id)
-        curl_setopt_array($curl, array(
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_MAXREDIRS => 5,
-                CURLOPT_TIMEOUT => 30,
-                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-                CURLOPT_USERAGENT => $cfg_user_agent,
-                CURLOPT_HTTPHEADER => array(
-                    'Authorization: Bearer ' . $core_bearer
-                ),
-            )
-        );
-        $core_curls[] = $curl;
-        curl_multi_add_handle($core_curl_multi, $curl);
+    if (isset($cfg_core_api) and isset($cfg_core_app_id) and isset($cfg_core_app_secret)) {
+        $core_bearer = base64_encode($cfg_core_app_id . ':' . $cfg_core_app_secret);
+    
+        $core_curls = array();
+        $core_curl_multi = curl_multi_init();
+    
+        foreach ($full_character_id_array as $character_id) {
+            $curl = curl_init(cfg_core_api . '/app/v1/groups/' + character_id)
+            curl_setopt_array($curl, array(
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_MAXREDIRS => 5,
+                    CURLOPT_TIMEOUT => 30,
+                    CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                    CURLOPT_USERAGENT => $cfg_user_agent,
+                    CURLOPT_HTTPHEADER => array(
+                        'Authorization: Bearer ' . $core_bearer
+                    ),
+                )
+            );
+            $core_curls[$character_id] = $curl;
+            curl_multi_add_handle($core_curl_multi, $curl);
+        }
+    
+        do
+        {
+            $mrc = curl_multi_exec($core_curl_multi, $active);
+        } while ($mrc == CURLM_CALL_MULTI_PERFORM);
+    
+        while ($active && $mrc == CURLM_OK)
+        {
+            curl_multi_select($core_curl_multi);
+            do
+            {
+                $mrc = curl_multi_exec($core_curl_multi, $active);
+            } while ($mrc == CURLM_CALL_MULTI_PERFORM);
+        }
+    
+        if ($mrc != CURLM_OK) {
+            $_SESSION['error_code'] = 60;
+            $_SESSION['error_message'] = 'Failed to retrieve character affiliation.';
+            return false;
+        }
+    
+        foreach ($core_curls as $character_id => $core_curl){
+            $error = curl_error($core_curls[$core_curl]);
+    
+            if ($error == ''){
+                $response = curl_multi_getcontent($core_curls[$core_curl]);
+                $groups_json = json_decode($response);
+                $groups = array();
+                foreach ($groups_json as $group){
+                    $groups[] = $group['name']
+                }
+                $affiliations[$character_id]['groups'] = implode(',', $groups);
+            }
+            else {
+                print 'Core error on $character_id: $error';
+            }
+            curl_multi_remove_handle($core_curl_multi, $core_curls[$core_curl]);
+            curl_close($core_curls[$core_curl]);
+        }
+        curl_multi_close($core_curl_multi)
     }
-
-    $running = 0;
-    do {
-        curl_multi_exec($core_curl_multi, $running);
-    } while($running > 0);
-
-
 
     // Filter out duplicate ids
     $character_ids   = array_unique($character_ids, SORT_NUMERIC);
