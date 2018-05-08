@@ -21,8 +21,8 @@ $cfg_sql_user = 'root';
 $cfg_sql_pass = 'root';
 
 # If using https://github.com/bravecollective/brvneucore/ for groups, set your core api url, app ID and secret here
-#$cfg_core_api = 'https://brvneucore.herokuapp.com/api'
-#$cfg_core_app_id = 1
-#$cfg_core_app_secret = 'secret'
+#$cfg_core_api = 'https://brvneucore.herokuapp.com/api';
+#$cfg_core_app_id = 1;
+#$cfg_core_app_secret = 'secret';
 
 ?>
