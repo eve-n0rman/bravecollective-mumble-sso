@@ -134,12 +134,14 @@ function sso_update() {
     // ---- Character details
 
     $affiliation = character_affiliation($character_id);
+    $character_groups = core_groups(array($character_id))[(int)$character_id];
 
     $character_name = (string)$affiliation[0]['character_name'];
     $corporation_id = (int)$affiliation[0]['corporation_id'];
     $corporation_name = (string)$affiliation[0]['corporation_name'];
     $alliance_id = (int)$affiliation[0]['alliance_id'];
     $alliance_name = (string)$affiliation[0]['alliance_name'];
+    $groups = (string)$character_groups;
     $mumble_username = toMumbleName($character_name);
     $updated_at = time();
 
@@ -245,7 +247,7 @@ function sso_update() {
 	if ($owner_hash == $row['owner_hash']) {
 	    $mumble_password = $row['mumble_password'];
 	}
-	$stm = $dbr->prepare('UPDATE user set character_name = :character_name, corporation_id = :corporation_id, corporation_name = :corporation_name, alliance_id = :alliance_id, alliance_name = :alliance_name, mumble_username = :mumble_username, mumble_password = :mumble_password, updated_at = :updated_at, owner_hash = :owner_hash WHERE character_id = :character_id');
+	$stm = $dbr->prepare('UPDATE user set character_name = :character_name, corporation_id = :corporation_id, corporation_name = :corporation_name, alliance_id = :alliance_id, alliance_name = :alliance_name, mumble_username = :mumble_username, mumble_password = :mumble_password, groups = :groups, updated_at = :updated_at, owner_hash = :owner_hash WHERE character_id = :character_id');
 	$stm->bindValue(':character_id', $character_id);
 	$stm->bindValue(':character_name', $character_name);
 	$stm->bindValue(':corporation_id', $corporation_id);
@@ -254,6 +256,7 @@ function sso_update() {
 	$stm->bindValue(':alliance_name', $alliance_name);
 	$stm->bindValue(':mumble_username', $mumble_username);
 	$stm->bindValue(':mumble_password', $mumble_password);
+    $stm->bindValue(':groups', $groups);
 	$stm->bindValue(':updated_at', $updated_at);
 	$stm->bindValue(':owner_hash', $owner_hash);
 	if (!$stm->execute()) {
@@ -264,7 +267,7 @@ function sso_update() {
 	    return false;
 	}
     } else {
-	$stm = $dbr->prepare('INSERT INTO user (character_id, character_name, corporation_id, corporation_name, alliance_id, alliance_name, mumble_username, mumble_password, created_at, updated_at, owner_hash) VALUES (:character_id, :character_name, :corporation_id, :corporation_name, :alliance_id, :alliance_name, :mumble_username, :mumble_password, :created_at, :updated_at, :owner_hash)');
+	$stm = $dbr->prepare('INSERT INTO user (character_id, character_name, corporation_id, corporation_name, alliance_id, alliance_name, mumble_username, mumble_password, groups, created_at, updated_at, owner_hash) VALUES (:character_id, :character_name, :corporation_id, :corporation_name, :alliance_id, :alliance_name, :mumble_username, :mumble_password, :groups, :created_at, :updated_at, :owner_hash)');
 	$stm->bindValue(':character_id', $character_id);
 	$stm->bindValue(':character_name', $character_name);
 	$stm->bindValue(':corporation_id', $corporation_id);
@@ -273,6 +276,7 @@ function sso_update() {
 	$stm->bindValue(':alliance_name', $alliance_name);
 	$stm->bindValue(':mumble_username', $mumble_username);
 	$stm->bindValue(':mumble_password', $mumble_password);
+    $stm->bindValue(':groups', $groups);
 	$stm->bindValue(':created_at', $updated_at);
 	$stm->bindValue(':updated_at', $updated_at);
 	$stm->bindValue(':owner_hash', $owner_hash);
@@ -299,6 +303,7 @@ function sso_update() {
 
     $_SESSION['mumble_username'] = $mumble_username;
     $_SESSION['mumble_password'] = $mumble_password;
+    $_SESSION['groups'] = $groups;
 
     $_SESSION['updated_at'] = $updated_at;
 
@@ -425,77 +430,6 @@ function character_affiliation($full_character_id_array) {
         $alliance_ids       = array_merge($alliance_ids,    array_column($chunk_affiliations, 'alliance_id'));
     }
 
-    // Grab core groups
-    // TODO: need a bulk query endpoint in core to avoid all these queries
-
-    global $cfg_core_api;
-    global $cfg_core_app_id;
-    global $cfg_core_app_secret;
-
-    if (isset($cfg_core_api) and isset($cfg_core_app_id) and isset($cfg_core_app_secret)) {
-        $core_bearer = base64_encode($cfg_core_app_id . ':' . $cfg_core_app_secret);
-    
-        $core_curls = array();
-        $core_curl_multi = curl_multi_init();
-    
-        foreach ($full_character_id_array as $character_id) {
-            $curl = curl_init(cfg_core_api . '/app/v1/groups/' + character_id)
-            curl_setopt_array($curl, array(
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_MAXREDIRS => 5,
-                    CURLOPT_TIMEOUT => 30,
-                    CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-                    CURLOPT_USERAGENT => $cfg_user_agent,
-                    CURLOPT_HTTPHEADER => array(
-                        'Authorization: Bearer ' . $core_bearer
-                    ),
-                )
-            );
-            $core_curls[$character_id] = $curl;
-            curl_multi_add_handle($core_curl_multi, $curl);
-        }
-    
-        do
-        {
-            $mrc = curl_multi_exec($core_curl_multi, $active);
-        } while ($mrc == CURLM_CALL_MULTI_PERFORM);
-    
-        while ($active && $mrc == CURLM_OK)
-        {
-            curl_multi_select($core_curl_multi);
-            do
-            {
-                $mrc = curl_multi_exec($core_curl_multi, $active);
-            } while ($mrc == CURLM_CALL_MULTI_PERFORM);
-        }
-    
-        if ($mrc != CURLM_OK) {
-            $_SESSION['error_code'] = 60;
-            $_SESSION['error_message'] = 'Failed to retrieve character affiliation.';
-            return false;
-        }
-    
-        foreach ($core_curls as $character_id => $core_curl){
-            $error = curl_error($core_curls[$core_curl]);
-    
-            if ($error == ''){
-                $response = curl_multi_getcontent($core_curls[$core_curl]);
-                $groups_json = json_decode($response);
-                $groups = array();
-                foreach ($groups_json as $group){
-                    $groups[] = $group['name']
-                }
-                $affiliations[$character_id]['groups'] = implode(',', $groups);
-            }
-            else {
-                print 'Core error on $character_id: $error';
-            }
-            curl_multi_remove_handle($core_curl_multi, $core_curls[$core_curl]);
-            curl_close($core_curls[$core_curl]);
-        }
-        curl_multi_close($core_curl_multi)
-    }
-
     // Filter out duplicate ids
     $character_ids   = array_unique($character_ids, SORT_NUMERIC);
     $corporation_ids = array_unique($corporation_ids, SORT_NUMERIC);
@@ -554,8 +488,87 @@ function character_affiliation($full_character_id_array) {
         $affiliations[$i]['corporation_name'] = $corporation_names[$affiliations[$i]['corporation_id']];
         $affiliations[$i]['alliance_name']    = $alliance_names[$affiliations[$i]['alliance_id']];
     }
-
+    print 'Updating affiliations:';
+    print '$affiliations';
     return $affiliations;
+}
+
+function core_groups($full_character_id_array) {
+    // Grab core groups
+    // TODO: need a bulk query endpoint in core to avoid all these queries
+
+    global $cfg_core_api;
+    global $cfg_core_app_id;
+    global $cfg_core_app_secret;
+    global $cfg_user_agent;
+
+    $groups = array();
+
+    if (isset($cfg_core_api) and isset($cfg_core_app_id) and isset($cfg_core_app_secret)) {
+        $core_bearer = base64_encode($cfg_core_app_id . ':' . $cfg_core_app_secret);
+    
+        $core_curls = array();
+        $core_curl_multi = curl_multi_init();
+    
+        foreach ($full_character_id_array as $character_id) {
+            $character_id = (int)$character_id;
+            $curl = curl_init($cfg_core_api . '/app/v1/groups/' . $character_id);
+            curl_setopt_array($curl, array(
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_MAXREDIRS => 5,
+                    CURLOPT_TIMEOUT => 30,
+                    CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                    CURLOPT_USERAGENT => $cfg_user_agent,
+                    CURLOPT_HTTPHEADER => array(
+                        'Authorization: Bearer ' . $core_bearer
+                    ),
+                )
+            );
+            $core_curls[$character_id] = $curl;
+            curl_multi_add_handle($core_curl_multi, $curl);
+        }
+    
+        do
+        {
+            $mrc = curl_multi_exec($core_curl_multi, $active);
+        } while ($mrc == CURLM_CALL_MULTI_PERFORM);
+    
+        while ($active && $mrc == CURLM_OK)
+        {
+            curl_multi_select($core_curl_multi);
+            do
+            {
+                $mrc = curl_multi_exec($core_curl_multi, $active);
+            } while ($mrc == CURLM_CALL_MULTI_PERFORM);
+        }
+    
+        if ($mrc != CURLM_OK) {
+            error_log("core curl_multi error: $mrc");
+            return false;
+        }
+    
+        foreach ($core_curls as $character_id => $core_curl){
+            $error = curl_error($core_curls[$character_id]);
+    
+            if ($error == ''){
+                $char_response = curl_multi_getcontent($core_curls[$character_id]);
+                $char_groups_json = json_decode($char_response, 1);
+                $char_groups = array();
+                foreach ($char_groups_json as $char_group){
+                    $group_name = $char_group['name'];
+                    $char_groups[] = $group_name;
+                }
+                $groups[$character_id] = implode(',', $char_groups);
+            }
+            else {
+                error_log("Core error on $character_id: $error");
+            }
+            curl_multi_remove_handle($core_curl_multi, $core_curls[$character_id]);
+            curl_close($core_curls[$character_id]);
+        }
+        curl_multi_close($core_curl_multi);
+    }
+    return $groups;
 }
 
 function character_refresh() {
@@ -582,6 +595,7 @@ function character_refresh() {
     }
 
     $characters = character_affiliation($char_id_list);
+    $characters_groups = core_groups($char_id_list);
     $affiliation_count = count($characters);
     $stm = $dbr->prepare('UPDATE user
                           SET character_name = :character_name,
@@ -590,6 +604,7 @@ function character_refresh() {
                               alliance_id = :alliance_id,
                               alliance_name = :alliance_name,
                               mumble_username = :mumble_username,
+                              groups = :groups,
                               updated_at = :updated_at
                           WHERE character_id = :character_id');
 
@@ -604,6 +619,8 @@ function character_refresh() {
         $alliance_id = (int)$character['alliance_id'];
         $alliance_name = (string)$character['alliance_name'];
         $mumble_username = toMumbleName($character_name);
+        // TODO: Is this correctly removing groups (as they're removed, from old core, etc)
+        $groups = (string)$characters_groups[(int)$character_id];
         $updated_at = time();
 
         $stm->bindValue(':character_id', $character_id);
@@ -613,6 +630,7 @@ function character_refresh() {
         $stm->bindValue(':alliance_id', $alliance_id);
         $stm->bindValue(':alliance_name', $alliance_name);
         $stm->bindValue(':mumble_username', $mumble_username);
+        $stm->bindValue(':groups', $groups);
         $stm->bindValue(':updated_at', $updated_at);
         if (!$stm->execute()) {
             $err = $stm->ErrorInfo();
