@@ -526,7 +526,6 @@ function core_groups($character_id_array) {
         );
         $response = curl_exec($curl);
         $error = curl_error($curl);
-        error_log(print_r(curl_getinfo($curl), true));
         if ($error) {
             $_SESSION['error_code'] = 62;
             $_SESSION['error_message'] = 'Failed to retrieve core groups.';
