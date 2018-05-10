@@ -620,7 +620,7 @@ function character_refresh() {
         $alliance_name = (string)$character['alliance_name'];
         $mumble_username = toMumbleName($character_name);
         // TODO: Is this correctly removing groups (as they're removed, from old core, etc)
-        $groups = (string)$characters_groups[(int)$character_id];
+        $groups = isset($characters_groups[(int)$character_id]) ? (string)$characters_groups[(int)$character_id] : '';
         $updated_at = time();
 
         $stm->bindValue(':character_id', $character_id);
