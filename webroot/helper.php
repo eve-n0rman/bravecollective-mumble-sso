@@ -516,6 +516,7 @@ function core_groups($character_id_array) {
                 CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
                 CURLOPT_USERAGENT => $cfg_user_agent,
                 CURLOPT_HTTPHEADER => array(
+                    "Authorization: Bearer $core_bearer",
                     'Content-type: application/json',
                     'Content-length: ' . strlen($id_query)
                 ),
@@ -525,23 +526,28 @@ function core_groups($character_id_array) {
         );
         $response = curl_exec($curl);
         $error = curl_error($curl);
+        error_log(print_r(curl_getinfo($curl), true));
         if ($error) {
-            print 'Failed to retrieve core groups: ' . $error;
+            $_SESSION['error_code'] = 62;
+            $_SESSION['error_message'] = 'Failed to retrieve core groups.';
+            error_log("Failed to retrieve core groups: $error");
             return false;
         }
         curl_close($curl);
         $characters = json_decode($response); 
     
         foreach ($characters as $character) {
-            $character_id = $character['id'];
-            if ($character['groups']) {
+            $character_id = $character->character->id;
+            $character_name = $character->character->name;
+            if ($character->groups) {
                 $groups[$character_id] = implode(',', array_map(
-                    function($x) { return $x['name']; }, $character['groups']
+                    function($x) { return $x->name; }, $character->groups
                     )
                 );
             } else {
                 $groups[$character_id] = '';
             }
+            error_log("Added $groups[$character_id] to $character_name");
         }
     }
     return $groups;
@@ -570,6 +576,7 @@ function character_refresh() {
         $char_id_list[] = $row['character_id'];
     }
 
+    if ($char_id_list) {
     $characters = character_affiliation($char_id_list);
     $characters_groups = core_groups($char_id_list);
     $affiliation_count = count($characters);
@@ -615,7 +622,7 @@ function character_refresh() {
         }
         echo "...OK\n";
     }
-
+    } 
     return true;
 }
 ?>
