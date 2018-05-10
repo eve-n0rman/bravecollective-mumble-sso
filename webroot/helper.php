@@ -493,9 +493,8 @@ function character_affiliation($full_character_id_array) {
     return $affiliations;
 }
 
-function core_groups($full_character_id_array) {
+function core_groups($character_id_array) {
     // Grab core groups
-    // TODO: need a bulk query endpoint in core to avoid all these queries
 
     global $cfg_core_api;
     global $cfg_core_app_id;
@@ -507,66 +506,43 @@ function core_groups($full_character_id_array) {
     if (isset($cfg_core_api) and isset($cfg_core_app_id) and isset($cfg_core_app_secret)) {
         $core_bearer = base64_encode($cfg_core_app_id . ':' . $cfg_core_app_secret);
     
-        $core_curls = array();
-        $core_curl_multi = curl_multi_init();
-    
-        foreach ($full_character_id_array as $character_id) {
-            $character_id = (int)$character_id;
-            $curl = curl_init($cfg_core_api . '/app/v1/groups/' . $character_id);
-            curl_setopt_array($curl, array(
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_MAXREDIRS => 5,
-                    CURLOPT_TIMEOUT => 30,
-                    CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
-                    CURLOPT_USERAGENT => $cfg_user_agent,
-                    CURLOPT_HTTPHEADER => array(
-                        'Authorization: Bearer ' . $core_bearer
-                    ),
-                )
-            );
-            $core_curls[$character_id] = $curl;
-            curl_multi_add_handle($core_curl_multi, $curl);
-        }
-    
-        do
-        {
-            $mrc = curl_multi_exec($core_curl_multi, $active);
-        } while ($mrc == CURLM_CALL_MULTI_PERFORM);
-    
-        while ($active && $mrc == CURLM_OK)
-        {
-            curl_multi_select($core_curl_multi);
-            do
-            {
-                $mrc = curl_multi_exec($core_curl_multi, $active);
-            } while ($mrc == CURLM_CALL_MULTI_PERFORM);
-        }
-    
-        if ($mrc != CURLM_OK) {
-            error_log("core curl_multi error: $mrc");
+        $id_query = '[' . implode(',', $character_id_array) . ']';
+
+        $curl = curl_init($cfg_core_api . '/app/v1/groups');
+        curl_setopt_array($curl, array(
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_MAXREDIRS => 5,
+                CURLOPT_TIMEOUT => 30,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_USERAGENT => $cfg_user_agent,
+                CURLOPT_HTTPHEADER => array(
+                    'Content-type: application/json',
+                    'Content-length: ' . strlen($id_query)
+                ),
+                CURLOPT_CUSTOMREQUEST => 'POST',
+                CURLOPT_POSTFIELDS => $id_query
+            )
+        );
+        $response = curl_exec($curl);
+        $error = curl_error($curl);
+        if ($error) {
+            print 'Failed to retrieve core groups: ' . $error;
             return false;
         }
+        curl_close($curl);
+        $characters = json_decode($response); 
     
-        foreach ($core_curls as $character_id => $core_curl){
-            $error = curl_error($core_curls[$character_id]);
-    
-            if ($error == ''){
-                $char_response = curl_multi_getcontent($core_curls[$character_id]);
-                $char_groups_json = json_decode($char_response, 1);
-                $char_groups = array();
-                foreach ($char_groups_json as $char_group){
-                    $group_name = $char_group['name'];
-                    $char_groups[] = $group_name;
-                }
-                $groups[$character_id] = implode(',', $char_groups);
+        foreach ($characters as $character) {
+            $character_id = $character['id'];
+            if ($character['groups']) {
+                $groups[$character_id] = implode(',', array_map(
+                    function($x) { return $x['name']; }, $character['groups']
+                    )
+                );
+            } else {
+                $groups[$character_id] = '';
             }
-            else {
-                error_log("Core error on $character_id: $error");
-            }
-            curl_multi_remove_handle($core_curl_multi, $core_curls[$character_id]);
-            curl_close($core_curls[$character_id]);
         }
-        curl_multi_close($core_curl_multi);
     }
     return $groups;
 }
