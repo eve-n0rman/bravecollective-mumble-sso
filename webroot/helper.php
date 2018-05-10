@@ -396,7 +396,7 @@ function character_affiliation($full_character_id_array) {
 
     // Lookup character affiliations
     foreach (array_chunk($full_character_id_array, 999) as $character_id_array) {
-        $affiliation_query = '[' . implode(',', $character_id_array) . ']';
+        $affiliation_query = json_encode(array_values($character_id_array));
 
         $curl = curl_init('https://esi.evetech.net/latest/characters/affiliation/');
         curl_setopt_array($curl, array(
@@ -506,7 +506,7 @@ function core_groups($character_id_array) {
     if (isset($cfg_core_api) and isset($cfg_core_app_id) and isset($cfg_core_app_secret)) {
         $core_bearer = base64_encode($cfg_core_app_id . ':' . $cfg_core_app_secret);
     
-        $id_query = '[' . implode(',', $character_id_array) . ']';
+        $id_query = json_encode(array_values($character_id_array));
 
         $curl = curl_init($cfg_core_api . '/app/v1/groups');
         curl_setopt_array($curl, array(
