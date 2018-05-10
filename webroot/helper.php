@@ -442,7 +442,7 @@ function character_affiliation($full_character_id_array) {
 
     // Query all ids to get their names.
     foreach (array_chunk($all_ids, 999) as $query_ids) {
-        $name_query = '[' . implode(',', $query_ids) . ']';
+        $name_query = json_encode(array_values($query_ids));
 
         $curl = curl_init('https://esi.evetech.net/latest/universe/names/');
         curl_setopt_array($curl, array(
