@@ -533,14 +533,17 @@ function core_groups($character_id_array) {
             return false;
         }
         curl_close($curl);
-        $characters = json_decode($response); 
-    
+        $characters = json_decode($response, true);
+        if (!is_array($characters)) {
+            error_log('Neucore returned an valid response got: ' . print_r($characters, true));
+            return false;
+        }
         foreach ($characters as $character) {
-            $character_id = $character->character->id;
-            $character_name = $character->character->name;
-            if ($character->groups) {
+            $character_id = $character['character']['id'];
+            $character_name = $character['character']['name'];
+            if ($character['groups']) {
                 $groups[$character_id] = implode(',', array_map(
-                    function($x) { return $x->name; }, $character->groups
+                    function($x) { return $x['name']; }, $character['groups']
                     )
                 );
             } else {
