@@ -676,5 +676,8 @@ function fetch_corp_groups($coporation_id) {
 
         $cachedCorporationGroups[$corporation_id] = $groupString;
         return $groupString;
+    }
+
+    return '';
 }
 ?>
