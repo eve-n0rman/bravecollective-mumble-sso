@@ -629,7 +629,7 @@ function character_refresh() {
 
 $cachedCorporationGroups = [];
 
-function fetch_corp_groups($coporation_id) {
+function fetch_corp_groups($corporation_id) {
     global $cachedCorporationGroups;
     global $cfg_core_api;
     global $cfg_core_app_id;
@@ -640,13 +640,8 @@ function fetch_corp_groups($coporation_id) {
         return $cachedCorporationGroups[$corporation_id];
     }
 
-    $groups = array();
-
     if (isset($cfg_core_api) and isset($cfg_core_app_id) and isset($cfg_core_app_secret)) {
         $core_bearer = base64_encode($cfg_core_app_id . ':' . $cfg_core_app_secret);
-
-        $id_query = json_encode(array_values($character_id_array));
-
         $curl = curl_init($cfg_core_api . '/app/v1/corp-groups/' . $corporation_id);
         curl_setopt_array($curl, array(
                 CURLOPT_RETURNTRANSFER => true,
