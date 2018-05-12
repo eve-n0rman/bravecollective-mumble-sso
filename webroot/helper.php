@@ -667,6 +667,7 @@ function fetch_corp_groups($corporation_id) {
         $groupsFull = json_decode($response, true);
         $groupString = trim(array_reduce($groupsFull, function ($groupString, $groupInfo) {
             $groupString .= $groupInfo['name'] . ',';
+            return $groupString;
         }, ''), ', ');
 
         $cachedCorporationGroups[$corporation_id] = $groupString;
