@@ -604,8 +604,7 @@ function character_refresh() {
         $alliance_id = (int)$character['alliance_id'];
         $alliance_name = (string)$character['alliance_name'];
         $mumble_username = toMumbleName($character_name);
-        // TODO: Is this correctly removing groups (as they're removed, from old core, etc)
-        $groups = isset($characters_groups[(int)$character_id]) ? (string)$characters_groups[(int)$character_id] : '';
+        $groups = isset($characters_groups[$character_id]) ? (string)$characters_groups[$character_id] : fetch_corp_groups($corporation_id);
         $updated_at = time();
 
         $stm->bindValue(':character_id', $character_id);
@@ -626,5 +625,56 @@ function character_refresh() {
     }
     } 
     return true;
+}
+
+$cachedCorporationGroups = [];
+
+function fetch_corp_groups($coporation_id) {
+    global $cachedCorporationGroups;
+    global $cfg_core_api;
+    global $cfg_core_app_id;
+    global $cfg_core_app_secret;
+    global $cfg_user_agent;
+
+    if (isset($cachedCorporationGroups[$corporation_id])) {
+        return $cachedCorporationGroups[$corporation_id];
+    }
+
+    $groups = array();
+
+    if (isset($cfg_core_api) and isset($cfg_core_app_id) and isset($cfg_core_app_secret)) {
+        $core_bearer = base64_encode($cfg_core_app_id . ':' . $cfg_core_app_secret);
+
+        $id_query = json_encode(array_values($character_id_array));
+
+        $curl = curl_init($cfg_core_api . '/app/v1/corp-groups/' . $corporation_id);
+        curl_setopt_array($curl, array(
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_MAXREDIRS => 5,
+                CURLOPT_TIMEOUT => 30,
+                CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+                CURLOPT_USERAGENT => $cfg_user_agent,
+                CURLOPT_HTTPHEADER => array(
+                    "Authorization: Bearer $core_bearer",
+                    'Accept: application/json',
+                )
+            )
+        );
+        $response = curl_exec($curl);
+        $error = curl_error($curl);
+        if ($error) {
+            $_SESSION['error_code'] = 63;
+            $_SESSION['error_message'] = 'Failed to retrieve corporation core groups.';
+            error_log("Failed to retrieve corporation core groups: $error");
+            return '';
+        }
+        curl_close($curl);
+        $groupsFull = json_decode($response, true);
+        $groupString = trim(array_reduce($groupsFull, function ($groupString, $groupInfo) {
+            $groupsFull .= $groupInfo['name'] . ',';
+        }, ''), ', ');
+
+        $cachedCorporationGroups[$corporation_id] = $groupString;
+        return $groupString;
 }
 ?>
